@@ -153,10 +153,8 @@
 
     /* Manual Input */
     .input-group { display: flex; flex-direction: column; gap: 10px; }
-    .input-wrapper { position: relative; }
-
-    /* Prefix + Number input row */
-    .ticket-input-row {
+    /* Prefix input: Cebroid-[number] */
+    .input-prefix-row {
       display: flex;
       align-items: stretch;
       background: var(--surface-2);
@@ -165,11 +163,11 @@
       overflow: hidden;
       transition: border-color 0.2s, box-shadow 0.2s;
     }
-    .ticket-input-row:focus-within {
+    .input-prefix-row:focus-within {
       border-color: var(--orange);
       box-shadow: 0 0 0 3px var(--orange-glow);
     }
-    .ticket-input-row.error {
+    .input-prefix-row.error {
       border-color: var(--red);
       box-shadow: 0 0 0 3px rgba(239,68,68,0.2);
       animation: shake 0.4s ease;
@@ -178,12 +176,12 @@
       display: flex;
       align-items: center;
       padding: 0 14px;
-      background: rgba(230,92,0,0.1);
-      border-right: 1.5px solid rgba(230,92,0,0.25);
-      color: var(--orange);
+      background: rgba(230,92,0,0.12);
+      border-right: 1.5px solid rgba(230,92,0,0.3);
       font-family: 'JetBrains Mono', monospace;
       font-size: 16px;
-      font-weight: 600;
+      font-weight: 700;
+      color: var(--orange);
       letter-spacing: 1px;
       white-space: nowrap;
       user-select: none;
@@ -203,7 +201,7 @@
       min-width: 0;
       -webkit-appearance: none;
     }
-    #manual-ticket-input::placeholder { color: var(--dim); font-size: 16px; font-weight: 400; letter-spacing: 1px; }
+    #manual-ticket-input::placeholder { color: var(--dim); font-family: 'Inter', sans-serif; font-weight: 400; font-size: 15px; letter-spacing: 0.5px; }
     @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-6px)} 75%{transform:translateX(6px)} }
 
     #manual-verify-btn {
@@ -388,20 +386,21 @@
     <!-- Manual Panel -->
     <div id="manual-panel">
       <div class="input-group">
-        <div class="ticket-input-row" id="ticket-input-row">
+        <!-- Prefix badge + number input -->
+        <div class="input-prefix-row" id="prefix-row" onclick="document.getElementById('manual-ticket-input').focus()">
           <span class="ticket-prefix">Cebroid-</span>
           <input
             id="manual-ticket-input"
             type="text"
             inputmode="numeric"
-            placeholder="001"
+            placeholder="e.g. 004"
             autocomplete="off"
             autocorrect="off"
             autocapitalize="off"
             spellcheck="false"
-            maxlength="10"
-            onkeydown="if(event.key==='Enter') manualVerify()"
+            maxlength="6"
             oninput="this.value=this.value.replace(/[^0-9]/g,'')"
+            onkeydown="if(event.key==='Enter') manualVerify()"
           />
         </div>
         <button id="manual-verify-btn" onclick="manualVerify()">
@@ -545,18 +544,22 @@
       }).catch(console.error);
     }
 
-    /* Manual verify */
+    /* Manual verify — staff types only the number, Cebroid- is auto-prepended */
     function manualVerify() {
-      const input  = document.getElementById('manual-ticket-input');
-      const num    = input.value.trim();
-      if (!num) {
-        const row = document.getElementById('ticket-input-row');
-        row.classList.add('error');
+      const input      = document.getElementById('manual-ticket-input');
+      const prefixRow  = document.getElementById('prefix-row');
+      const rawNumber  = input.value.trim();
+
+      if (!rawNumber) {
+        prefixRow.classList.add('error');
         input.focus();
-        setTimeout(() => row.classList.remove('error'), 700);
+        setTimeout(() => prefixRow.classList.remove('error'), 700);
         return;
       }
-      const ticket = 'Cebroid-' + num;
+
+      // Auto-prepend prefix — staff only types the number
+      const ticket = 'Cebroid-' + rawNumber;
+
       const btn = document.getElementById('manual-verify-btn');
       btn.disabled = true;
       btn.innerHTML = '<span class="spinner"></span> Looking up\u2026';
