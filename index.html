@@ -154,33 +154,56 @@
     /* Manual Input */
     .input-group { display: flex; flex-direction: column; gap: 10px; }
     .input-wrapper { position: relative; }
-    .input-icon {
-      position: absolute;
-      left: 15px;
-      top: 50%;
-      transform: translateY(-50%);
-      color: var(--dim);
-      width: 18px; height: 18px;
-      pointer-events: none;
-    }
-    #manual-ticket-input {
-      width: 100%;
-      padding: 17px 16px 17px 46px;
+
+    /* Prefix + Number input row */
+    .ticket-input-row {
+      display: flex;
+      align-items: stretch;
       background: var(--surface-2);
       border: 1.5px solid var(--border-hi);
       border-radius: var(--radius-sm);
+      overflow: hidden;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .ticket-input-row:focus-within {
+      border-color: var(--orange);
+      box-shadow: 0 0 0 3px var(--orange-glow);
+    }
+    .ticket-input-row.error {
+      border-color: var(--red);
+      box-shadow: 0 0 0 3px rgba(239,68,68,0.2);
+      animation: shake 0.4s ease;
+    }
+    .ticket-prefix {
+      display: flex;
+      align-items: center;
+      padding: 0 14px;
+      background: rgba(230,92,0,0.1);
+      border-right: 1.5px solid rgba(230,92,0,0.25);
+      color: var(--orange);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 16px;
+      font-weight: 600;
+      letter-spacing: 1px;
+      white-space: nowrap;
+      user-select: none;
+      flex-shrink: 0;
+    }
+    #manual-ticket-input {
+      flex: 1;
+      padding: 17px 16px;
+      background: transparent;
+      border: none;
       color: var(--text);
       font-family: 'JetBrains Mono', monospace;
-      font-size: 17px;
-      font-weight: 600;
-      letter-spacing: 1.5px;
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: 2px;
       outline: none;
-      transition: border-color 0.2s, box-shadow 0.2s;
+      min-width: 0;
       -webkit-appearance: none;
     }
-    #manual-ticket-input:focus { border-color: var(--orange); box-shadow: 0 0 0 3px var(--orange-glow); }
-    #manual-ticket-input::placeholder { color: var(--dim); font-family: 'Inter', sans-serif; font-weight: 400; font-size: 14px; letter-spacing: 0.5px; }
-    #manual-ticket-input.error { border-color: var(--red); box-shadow: 0 0 0 3px rgba(239,68,68,0.2); animation: shake 0.4s ease; }
+    #manual-ticket-input::placeholder { color: var(--dim); font-size: 16px; font-weight: 400; letter-spacing: 1px; }
     @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-6px)} 75%{transform:translateX(6px)} }
 
     #manual-verify-btn {
@@ -365,20 +388,20 @@
     <!-- Manual Panel -->
     <div id="manual-panel">
       <div class="input-group">
-        <div class="input-wrapper">
-          <svg class="input-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M15 9h3.75M15 12h3.75M15 15h3.75M4.5 19.5h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5zm6-10.125a1.875 1.875 0 11-3.75 0 1.875 1.875 0 013.75 0zm1.294 6.336a6.721 6.721 0 01-3.17.789 6.721 6.721 0 01-3.168-.789 3.376 3.376 0 016.338 0z"/>
-          </svg>
+        <div class="ticket-input-row" id="ticket-input-row">
+          <span class="ticket-prefix">Cebroid-</span>
           <input
             id="manual-ticket-input"
             type="text"
-            inputmode="text"
-            placeholder="Ticket No. e.g. CEB2K26-001"
+            inputmode="numeric"
+            placeholder="001"
             autocomplete="off"
             autocorrect="off"
-            autocapitalize="characters"
+            autocapitalize="off"
             spellcheck="false"
+            maxlength="10"
             onkeydown="if(event.key==='Enter') manualVerify()"
+            oninput="this.value=this.value.replace(/[^0-9]/g,'')"
           />
         </div>
         <button id="manual-verify-btn" onclick="manualVerify()">
@@ -525,13 +548,15 @@
     /* Manual verify */
     function manualVerify() {
       const input  = document.getElementById('manual-ticket-input');
-      const ticket = input.value.trim();
-      if (!ticket) {
-        input.classList.add('error');
+      const num    = input.value.trim();
+      if (!num) {
+        const row = document.getElementById('ticket-input-row');
+        row.classList.add('error');
         input.focus();
-        setTimeout(() => input.classList.remove('error'), 700);
+        setTimeout(() => row.classList.remove('error'), 700);
         return;
       }
+      const ticket = 'Cebroid-' + num;
       const btn = document.getElementById('manual-verify-btn');
       btn.disabled = true;
       btn.innerHTML = '<span class="spinner"></span> Looking up\u2026';
