@@ -461,6 +461,10 @@
   </div>
 
   <script>
+    // ── CONFIG — paste your Apps Script /exec URL here ──────────
+    const API_URL = 'https://script.google.com/macros/s/AKfycbxGCI0K38bw00XmbxQMhUPvj2M7PaDDjC8yhXN9526ghP_CKlrj-1xMciWXiOJ-X02RtA/exec';
+    // ─────────────────────────────────────────────────────────────
+
     let html5QrCode;
     let currentRow  = null;
     let currentMode = 'qr';
@@ -575,10 +579,13 @@
       });
     }
 
-    /* Shared verify */
+    /* Shared verify — calls Apps Script REST API */
     function verifyTicket(ticketNumber, onDone) {
-      google.script.run
-        .withSuccessHandler(function(response) {
+      const url = API_URL + '?action=verify&ticket=' + encodeURIComponent(ticketNumber);
+
+      fetch(url)
+        .then(function(res) { return res.json(); })
+        .then(function(response) {
           if (onDone) onDone();
           setStatus('');
           if (response.status === 'success') {
@@ -593,44 +600,48 @@
             setStatus('\u274C ' + response.message);
           }
         })
-        .withFailureHandler(function(error) {
+        .catch(function(err) {
           if (onDone) onDone();
-          setStatus('\u26A0 Server error: ' + error.message);
-        })
-        .getParticipantDetails(ticketNumber);
+          setStatus('\u26A0 Network error: ' + err.message);
+        });
     }
 
-    /* Mark Attendance */
+    /* Mark Attendance — calls Apps Script REST API */
     function markAttendance() {
       if (!currentRow) return;
       const btn = document.getElementById('mark-btn');
       btn.disabled = true;
       btn.innerHTML = '<span class="spinner"></span> Forging Records\u2026';
 
-      google.script.run
-        .withSuccessHandler(function(response) {
-          hideResultCard();
-          currentRow = null;
-          setStatus('\u2705 ' + response.message);
-          setTimeout(() => setStatus(''), 3500);
-          btn.disabled = false;
-          btn.innerHTML = `
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" width="20" height="20">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-            </svg>
-            Grant Access &mdash; Mark Present`;
-          if (currentMode === 'manual') document.getElementById('manual-ticket-input').focus();
+      const url = API_URL + '?action=markPresent&row=' + currentRow;
+
+      const resetBtn = () => {
+        btn.disabled = false;
+        btn.innerHTML = `
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" width="20" height="20">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          Grant Access &mdash; Mark Present`;
+      };
+
+      fetch(url)
+        .then(function(res) { return res.json(); })
+        .then(function(response) {
+          resetBtn();
+          if (response.status === 'success') {
+            hideResultCard();
+            currentRow = null;
+            setStatus('\u2705 ' + response.message);
+            setTimeout(() => setStatus(''), 3500);
+            if (currentMode === 'manual') document.getElementById('manual-ticket-input').focus();
+          } else {
+            setStatus('\u26A0 ' + response.message);
+          }
         })
-        .withFailureHandler(function(error) {
-          setStatus('\u26A0 Error: ' + error.message);
-          btn.disabled = false;
-          btn.innerHTML = `
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" width="20" height="20">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-            </svg>
-            Grant Access &mdash; Mark Present`;
-        })
-        .markPresent(currentRow);
+        .catch(function(err) {
+          resetBtn();
+          setStatus('\u26A0 Network error: ' + err.message);
+        });
     }
 
     /* Helpers */
