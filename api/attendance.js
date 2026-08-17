@@ -11,7 +11,7 @@
 // And returns the JSON response to the browser.
 // ─────────────────────────────────────────────────────────────────
 
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbyX1vneGsZgcu9_hfTHDJfZw2qsJWjFfO48Qv1Ma7OdZrsSgr85wegR7YBeB43plUwwYQ/exec';
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbzwyxaiQJYuYMsnkH2pxkEih_Le99ZjkcPs4JwT2eL5shuJnrWIGwDm-rOQ1XcYUiF5MQ/exec';
 
 export default async function handler(req, res) {
 
