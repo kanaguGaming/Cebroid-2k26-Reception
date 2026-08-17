@@ -1,0 +1,222 @@
+/**
+ * ================================================================
+ * CEBROID 2K26 — Attendance Scanner API
+ * ================================================================
+ *
+ * This script acts as a REST API for the Vercel-hosted scanner page.
+ * The HTML page calls this via fetch() instead of google.script.run.
+ *
+ * ENDPOINTS
+ * ----------------------------------------------------------------
+ * GET  ?action=verify&ticket=Cebroid-004
+ *      → Looks up ticket, returns participant details
+ *
+ * GET  ?action=markPresent&row=5
+ *      → Marks the participant at that row as attended
+ *
+ * SETUP
+ * ----------------------------------------------------------------
+ * 1. Create new Google Sheet → name sheet tab: Registrations
+ * 2. Copy verified participant rows from registration sheet
+ * 3. Add header "Attended" in cell P1 (Column 16)
+ * 4. Extensions → Apps Script → paste this into Code.gs
+ * 5. Run authorizeScript() once
+ * 6. Deploy → New Deployment → Web App
+ *    Execute as : Me
+ *    Who has access : Anyone
+ * 7. Copy the /exec URL into Index.html → API_URL constant
+ *
+ * SHEET COLUMNS (same as registration sheet)
+ * ----------------------------------------------------------------
+ * A (1)  Timestamp           I (9)  Ticket Number
+ * B (2)  Full Name           J (10) Verification Status
+ * C (3)  Contact Number      K (11) Pass Sent
+ * D (4)  Email               L (12) OD Generated
+ * E (5)  College             M (13) Email Status
+ * F (6)  Events              N (14) Email Sent At
+ * G (7)  Fee                 O (15) Error Log
+ * H (8)  Screenshot          P (16) Attended  ← add this header
+ * ================================================================
+ */
+
+
+// ── CONFIGURATION ────────────────────────────────────────────────
+
+const SHEET_NAME   = "Registrations";  // Sheet tab name
+const COL_TICKET   = 9;   // I
+const COL_VERIFY   = 10;  // J
+const COL_NAME     = 2;   // B
+const COL_COLLEGE  = 5;   // E
+const COL_EVENTS   = 6;   // F
+const COL_ATTENDED = 16;  // P  ← add "Attended" header in P1
+const TOTAL_COLS   = 16;  // Read columns A–P
+
+
+// ================================================================
+// MAIN GET HANDLER — All requests come here
+// ================================================================
+
+function doGet(e) {
+
+  // Allow cross-origin requests from Vercel (CORS)
+  const action = e && e.parameter && e.parameter.action
+    ? e.parameter.action
+    : "";
+
+  let result;
+
+  if (action === "verify") {
+
+    const ticket = e.parameter.ticket || "";
+    result = getParticipantDetails(ticket);
+
+  } else if (action === "markPresent") {
+
+    const row = parseInt(e.parameter.row, 10);
+    result = markPresent(row);
+
+  } else {
+
+    result = { status: "online", message: "Cebroid 2k26 Attendance API is live." };
+
+  }
+
+  // Return JSON with CORS headers
+  return ContentService
+    .createTextOutput(JSON.stringify(result))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+
+// ================================================================
+// GET PARTICIPANT DETAILS
+// ================================================================
+
+function getParticipantDetails(ticketNumber) {
+  try {
+
+    if (!ticketNumber || String(ticketNumber).trim() === "") {
+      return { status: "error", message: "No ticket number provided." };
+    }
+
+    const ticket = String(ticketNumber).trim();
+
+    const sheet = SpreadsheetApp
+      .getActiveSpreadsheet()
+      .getSheetByName(SHEET_NAME);
+
+    if (!sheet) {
+      return { status: "error", message: "Sheet not found. Check SHEET_NAME." };
+    }
+
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) {
+      return { status: "error", message: "No participant data in sheet." };
+    }
+
+    // Read all data rows
+    const data = sheet.getRange(2, 1, lastRow - 1, TOTAL_COLS).getValues();
+
+    let matchedRow  = -1;
+    let matchedData = null;
+
+    for (let i = 0; i < data.length; i++) {
+      const rowTicket = String(data[i][COL_TICKET - 1] || "").trim();
+      if (rowTicket.toLowerCase() === ticket.toLowerCase()) {
+        matchedRow  = i + 2;
+        matchedData = data[i];
+        break;
+      }
+    }
+
+    if (matchedRow === -1) {
+      return { status: "error", message: "Ticket \"" + ticket + "\" not found." };
+    }
+
+    // Must be Verified
+    const verStatus = String(matchedData[COL_VERIFY - 1] || "").trim();
+    if (verStatus.toLowerCase() !== "verified") {
+      return {
+        status:  "error",
+        message: "Not verified yet. Status: " + (verStatus || "Pending")
+      };
+    }
+
+    // Must not already be checked in
+    const attended = String(matchedData[COL_ATTENDED - 1] || "").trim();
+    if (attended.toLowerCase() === "yes") {
+      return { status: "error", message: "Already checked in. Duplicate entry blocked." };
+    }
+
+    return {
+      status:  "success",
+      row:     matchedRow,
+      name:    String(matchedData[COL_NAME    - 1] || "").trim(),
+      college: String(matchedData[COL_COLLEGE - 1] || "").trim(),
+      events:  String(matchedData[COL_EVENTS  - 1] || "").trim(),
+      ticket:  String(matchedData[COL_TICKET  - 1] || "").trim()
+    };
+
+  } catch (error) {
+    Logger.log("getParticipantDetails ERROR: " + error.stack);
+    return { status: "error", message: "Server error: " + error.message };
+  }
+}
+
+
+// ================================================================
+// MARK PARTICIPANT AS PRESENT
+// ================================================================
+
+function markPresent(row) {
+  try {
+
+    if (!row || isNaN(row) || row < 2) {
+      return { status: "error", message: "Invalid row reference." };
+    }
+
+    const sheet = SpreadsheetApp
+      .getActiveSpreadsheet()
+      .getSheetByName(SHEET_NAME);
+
+    if (!sheet) {
+      return { status: "error", message: "Sheet not found." };
+    }
+
+    // Prevent duplicate check-in
+    const currentAttended = String(
+      sheet.getRange(row, COL_ATTENDED).getValue()
+    ).trim();
+
+    if (currentAttended.toLowerCase() === "yes") {
+      return { status: "error", message: "Already marked present. Duplicate blocked." };
+    }
+
+    // Mark attended
+    sheet.getRange(row, COL_ATTENDED).setValue("Yes");
+
+    const name   = String(sheet.getRange(row, COL_NAME  ).getValue()).trim();
+    const ticket = String(sheet.getRange(row, COL_TICKET).getValue()).trim();
+
+    Logger.log("Checked in: " + name + " [" + ticket + "] row " + row);
+
+    return {
+      status:  "success",
+      message: name + " granted entry. Welcome to Cebroid 2k26!"
+    };
+
+  } catch (error) {
+    Logger.log("markPresent ERROR: " + error.stack);
+    return { status: "error", message: "Failed to mark attendance: " + error.message };
+  }
+}
+
+
+// ================================================================
+// AUTHORIZE — Run manually ONCE before deploying
+// ================================================================
+
+function authorizeScript() {
+  SpreadsheetApp.getActiveSpreadsheet();
+  Logger.log("Authorization successful.");
+}
